@@ -438,7 +438,7 @@ def mostrar_bienvenida():
 
 <div style="background: white; border-radius: 8px; padding: 1.2em; margin: 1.5em 0;">
 <h3 style="color: #1976d2; margin-top: 0;">📊 ¿Qué hace esta herramienta?</h3>
-<p>AgroPrint calcula las emisiones de gases de efecto invernadero de tu cultivo, considerando todo el proceso desde la siembra hasta la cosecha. Analiza:</p>
+<p>AgroPrint calcula la huella de carbono de gases de efecto invernadero de tu cultivo, considerando todo el proceso desde la siembra hasta la cosecha. Analiza:</p>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 1em 0;">
 <div style="background: #E3F2FD; padding: 0.8em; border-radius: 6px;">🌾 <strong>Fertilizantes</strong></div>
 <div style="background: #E8F5E8; padding: 0.8em; border-radius: 6px;">🚜 <strong>Labores y Maquinaria</strong></div>
@@ -537,7 +537,7 @@ def mostrar_bienvenida():
 <li>📊 <strong>Reporte completo</strong> de tu huella de carbono</li>
 <li>📈 <strong>Gráficos visuales</strong> fáciles de entender</li>
 <li>📄 <strong>Documentos PDF y Excel</strong> para presentar a compradores</li>
-<li>💡 <strong>Identificación</strong> de las principales fuentes de emisiones</li>
+<li>💡 <strong>Identificación</strong> de las principales fuentes de huella de carbono</li>
 <li>🎯 <strong>Oportunidades</strong> para reducir costos e impacto ambiental</li>
 </ul>
 </div>
@@ -739,7 +739,7 @@ def ingresar_fertilizantes(etapa, unidad_cantidad="ciclo"):
                 p = st.number_input("Contenido de P₂O₅ (%)", min_value=0.0, max_value=100.0, value=float(valores['P2O5']), format="%.6g", key=f"P_org_{etapa}_{i}")
                 k = st.number_input("Contenido de K₂O (%)", min_value=0.0, max_value=100.0, value=float(valores['K2O']), format="%.6g", key=f"K_org_{etapa}_{i}")
                 fraccion_seca_pct = st.number_input("Fracción seca del fertilizante (%)", min_value=0.0, max_value=100.0, value=float(valores['fraccion_seca'])*100, format="%.6g", key=f"fraccion_seca_org_{etapa}_{i}")
-                st.info("Para el cálculo de huella de carbono, el contenido de N es el principal responsable de las emisiones de N₂O. Si no dispone de los otros nutrientes, puede dejarlos en cero.")
+                st.info("Para el cálculo de huella de carbono, el contenido de N es el principal responsable de la huella de carbono de N₂O. Si no dispone de los otros nutrientes, puede dejarlos en cero.")
                 fertilizantes.append({
                     "tipo": nombre_otro_org if (tipo == "Otros" and nombre_otro_org) else tipo,
                     "cantidad": cantidad,
@@ -996,6 +996,8 @@ def calcular_emisiones_fertilizantes(fert_data, duracion):
 def ingresar_agroquimicos(etapa):
     st.markdown("##### Agroquímicos y pesticidas")
     agroquimicos = []
+    nombres_comerciales_usados = []  # Para controlar duplicados
+    contadores_categoria = {}  # Para contar por categoría
     categorias = [
         ("Pesticida", "pesticidas"),
         ("Fungicida", "fungicidas"),
@@ -1026,6 +1028,32 @@ def ingresar_agroquimicos(etapa):
                 key=f"cat_agro_{etapa}_{i}"
             )
             clave_categoria = dict(categorias)[categoria]
+            
+            nombre_comercial = st.text_input(
+                "Nombre comercial del agroquímico",
+                placeholder="Ej: Roundup, Furadan, etc.",
+                key=f"nombre_comercial_agro_{etapa}_{i}"
+            )
+            
+            # Lógica de nombres por defecto basada en categoría
+            if not nombre_comercial.strip():
+                # Incrementar contador para esta categoría
+                if categoria not in contadores_categoria:
+                    contadores_categoria[categoria] = 0
+                contadores_categoria[categoria] += 1
+                nombre_final = f"{categoria.lower()} {contadores_categoria[categoria]}"
+            else:
+                nombre_final = nombre_comercial.strip()
+            
+            # Manejo de nombres duplicados con sufijos automáticos
+            if nombre_final in nombres_comerciales_usados:
+                contador = 1
+                nombre_base = nombre_final
+                while f"{nombre_base} {contador}" in nombres_comerciales_usados:
+                    contador += 1
+                nombre_final = f"{nombre_base} {contador}"
+            nombres_comerciales_usados.append(nombre_final)
+            
             tipo = st.selectbox(
                 f"Tipo de {categoria.lower()}",
                 tipos_dict[clave_categoria],
@@ -1068,6 +1096,7 @@ def ingresar_agroquimicos(etapa):
             agroquimicos.append({
                 "categoria": clave_categoria,
                 "tipo": tipo,
+                "nombre_comercial": nombre_final,
                 "cantidad_ia": cantidad_ia,
                 "fe": fe,
                 "emisiones": emisiones
@@ -1116,7 +1145,7 @@ def ingresar_maquinaria_perenne(etapa, tipo_etapa):
             )
 
             if tipo_labor == "Manual":
-                st.info("Labor manual: no se consideran emisiones directas de maquinaria ni combustible.")
+                st.info("Labor manual: no se considera huella de carbono directa de maquinaria ni combustible.")
                 labores.append({
                     "nombre_labor": nombre_labor,
                     "tipo_maquinaria": "Manual",
@@ -1254,7 +1283,7 @@ def ingresar_maquinaria_ciclo(etapa):
             tipo_labor = st.radio("¿La labor es manual o mecanizada?", ["Manual", "Mecanizada"], key=f"tipo_labor_{etapa}_{i}")
 
             if tipo_labor == "Manual":
-                st.info("Labor manual: no se consideran emisiones directas de maquinaria ni combustible.")
+                st.info("Labor manual: no se considera huella de carbono directa de maquinaria ni combustible.")
                 labores.append({
                     "nombre_labor": nombre_labor,
                     "tipo_maquinaria": "Manual",
@@ -1425,7 +1454,7 @@ def ingresar_gestion_residuos(etapa):
 
                 # --- Ajustes específicos por método ---
                 if op == "Quema":
-                    st.caption("Se aplicará fracción seca y fracción quemada según IPCC 2006 para el cálculo de emisiones.")
+                    st.caption("Se aplicará fracción seca y fracción quemada según IPCC 2006 para el cálculo de huella de carbono.")
                     fraccion_seca = st.number_input(
                         "Fracción seca de la biomasa (valor recomendado IPCC: 0,8)",
                         min_value=0.0, max_value=1.0, value=factores_residuos["fraccion_seca"],
@@ -1446,7 +1475,7 @@ def ingresar_gestion_residuos(etapa):
                 elif op == "Compostaje":
                     st.warning("⚠️ **Importante**: Solo considere el compostaje si se realiza dentro de su predio/huerto. Si los residuos se envían fuera para compostar, seleccione 'Retiro del campo'.")
                     
-                    st.caption("Cálculo de emisiones según metodología IPCC 2006 para compostaje aeróbico de residuos vegetales generados en el huerto.")
+                    st.caption("Cálculo de huella de carbono según metodología IPCC 2006 para compostaje aeróbico de residuos vegetales generados en el huerto.")
                     
                     estado_residuos = st.radio(
                         "¿En qué estado están los residuos vegetales al momento de hacer el compost?",
@@ -1472,7 +1501,7 @@ def ingresar_gestion_residuos(etapa):
                     
                     ajustes[op] = ajustes_compost
                 elif op == "Incorporación al suelo":
-                    st.caption("No se consideran emisiones directas según IPCC 2006. (Modo avanzado para secuestro de carbono no implementado).")
+                    st.caption("No se considera huella de carbono directa según IPCC 2006. (Modo avanzado para secuestro de carbono no implementado).")
                 elif op == "Retiro del campo":
                     destino = st.text_input("Destino o nota sobre el retiro del residuo (opcional)", key=f"destino_retiro_{etapa}")
                     ajustes[op] = {"destino": destino}
@@ -2401,7 +2430,7 @@ def etapa_crecimiento(nombre_etapa, produccion_pregunta=True):
 
             resultados_anuales.append({
                 "Año": anio,
-                "Emisiones (kg CO₂e/ha·año)": em_anio,
+                "Huella de carbono (kg CO₂e/ha·año)": em_anio,
                 "Producción (kg/ha·año)": produccion,
                 "Fertilizantes": em_fert_total,
                 "Agroquímicos": em_agroq,
@@ -2428,7 +2457,7 @@ def etapa_crecimiento(nombre_etapa, produccion_pregunta=True):
                 "desglose_residuos": detalle_residuos
             }
 
-            st.info(f"Emisiones en año {anio}: {format_num(em_anio)} kg CO₂e/ha")
+            st.info(f"Huella de carbono en año {anio}: {format_num(em_anio)} kg CO₂e/ha")
 
         emisiones_fuentes["Fertilizantes"] = total_fert
         emisiones_fuentes["Agroquímicos"] = total_agroq
@@ -2437,10 +2466,10 @@ def etapa_crecimiento(nombre_etapa, produccion_pregunta=True):
         emisiones_fuentes["Residuos"] = total_res
 
         if resultados_anuales:
-            st.markdown("### Emisiones por año en esta etapa")
+            st.markdown("### Huella de carbono por año en esta etapa")
             df_anual = pd.DataFrame(resultados_anuales)
-            df_anual["Emisiones (kg CO₂e/kg fruta·año)"] = df_anual.apply(
-                lambda row: row["Emisiones (kg CO₂e/ha·año)"] / row["Producción (kg/ha·año)"] if row["Producción (kg/ha·año)"] > 0 else None,
+            df_anual["Huella de carbono (kg CO₂e/kg fruta·año)"] = df_anual.apply(
+                lambda row: row["Huella de carbono (kg CO₂e/ha·año)"] / row["Producción (kg/ha·año)"] if row["Producción (kg/ha·año)"] > 0 else None,
                 axis=1
             )
             st.dataframe(df_anual, hide_index=True)
@@ -2525,7 +2554,7 @@ def etapa_crecimiento(nombre_etapa, produccion_pregunta=True):
             "desglose_residuos": detalle_residuos
         }
 
-        st.info(f"Emisiones totales en la etapa: {format_num(em_total)} kg CO₂e/ha para {duracion} años")
+        st.info(f"Huella de carbono total en la etapa: {format_num(em_total)} kg CO₂e/ha para {duracion} años")
         st.info(f"Producción total en la etapa: {format_num(produccion_total)} kg/ha")
 
     emisiones_etapas[nombre_etapa] = em_total
@@ -2833,8 +2862,8 @@ def etapa_anual():
         emisiones_fuentes["Maquinaria"] = em_maq * n_ciclos
         emisiones_fuentes["Residuos"] = em_residuos * n_ciclos
 
-        st.info(f"Emisiones por ciclo típico: {format_num(em_ciclo)} kg CO₂e/ha·ciclo")
-        st.info(f"Emisiones anuales (todos los ciclos): {format_num(em_total)} kg CO₂e/ha·año")
+        st.info(f"Huella de carbono por ciclo típico: {format_num(em_ciclo)} kg CO₂e/ha·ciclo")
+        st.info(f"Huella de carbono anual (todos los ciclos): {format_num(em_total)} kg CO₂e/ha·año")
 
         emisiones_etapas["Anual"] = em_total
         produccion_etapas["Anual"] = prod_total
@@ -2924,7 +2953,7 @@ def etapa_anual():
             total_maq += em_maq
             total_res += em_residuos
 
-            st.info(f"Emisiones en ciclo {i+1}: {format_num(em_ciclo)} kg CO₂e/ha·ciclo")
+            st.info(f"Huella de carbono en ciclo {i+1}: {format_num(em_ciclo)} kg CO₂e/ha·ciclo")
 
         if n_ciclos > 1:
             st.markdown("### Comparación de emisiones entre ciclos")
@@ -2982,38 +3011,80 @@ def configure_plotly_locale():
         'locale': 'es'
     }
 
-def format_num(x, decimales=2):
+def apply_spanish_format_to_fig(fig):
+    """
+    Aplica formato español a cualquier gráfico de plotly
+    """
+    fig.update_layout(separators=',.')
+    return fig
+
+def format_num(x, decimales=None):
     """
     Formatea números con coma como separador decimal y punto como separador de miles
+    Reglas de decimales automáticas según magnitud:
+    - >= 1000: sin decimales
+    - >= 10: 2 decimales máximo
+    - >= 1: 2-3 decimales
+    - < 1: 3-4 decimales (eliminando ceros innecesarios)
     """
     try:
         if pd.isnull(x) or x is None:
             return ""
         if isinstance(x, (float, int)):
-            # Si es mayor o igual a 10, usa 2 decimales máximo
-            if abs(x) >= 10:
-                # Formatear con 2 decimales
-                formatted = locale.format_string("%.2f", x, grouping=True)
-            else:
-                # Para números menores a 10, usar más decimales pero eliminar ceros innecesarios
-                max_decimales = min(decimales, 6)  # Máximo 6 decimales
-                formatted = locale.format_string(f"%.{max_decimales}f", x, grouping=True)
-                
-                # Eliminar ceros innecesarios al final
-                if ',' in formatted:
-                    formatted = formatted.rstrip('0').rstrip(',')
-                elif '.' in formatted:
-                    formatted = formatted.rstrip('0').rstrip('.')
+            abs_x = abs(x)
             
-            # Asegurar formato español: coma decimal, punto miles
-            # Si el locale no funcionó correctamente, forzar el formato español
-            if '.' in formatted and ',' not in formatted:
-                # Solo hay punto, probablemente es separador decimal en formato inglés
-                # Convertir a formato español si no hay separador de miles
-                parts = formatted.split('.')
-                if len(parts) == 2 and len(parts[0]) <= 3:
-                    # Es separador decimal, convertir a coma
-                    formatted = parts[0] + ',' + parts[1]
+            # Determinar número de decimales según magnitud si no se especifica
+            if decimales is None:
+                if abs_x >= 1000:
+                    decimales = 0
+                elif abs_x >= 10:
+                    decimales = 2
+                elif abs_x >= 1:
+                    decimales = 2
+                else:
+                    decimales = 4
+            
+            # Formatear manualmente en formato español
+            # Primero formatear con el número de decimales deseado
+            if decimales == 0:
+                formatted = f"{x:.0f}"
+            else:
+                formatted = f"{x:.{decimales}f}"
+            
+            # Separar parte entera y decimal
+            if '.' in formatted:
+                parte_entera, parte_decimal = formatted.split('.')
+            else:
+                parte_entera = formatted
+                parte_decimal = ""
+            
+            # Agregar separadores de miles (puntos) a la parte entera
+            if len(parte_entera) > 3:
+                # Convertir a positivo para agregar separadores, luego restaurar signo
+                es_negativo = parte_entera.startswith('-')
+                if es_negativo:
+                    parte_entera = parte_entera[1:]
+                
+                # Agregar puntos cada 3 dígitos de derecha a izquierda
+                parte_entera_formateada = ""
+                for i, digito in enumerate(reversed(parte_entera)):
+                    if i > 0 and i % 3 == 0:
+                        parte_entera_formateada = "." + parte_entera_formateada
+                    parte_entera_formateada = digito + parte_entera_formateada
+                
+                if es_negativo:
+                    parte_entera_formateada = "-" + parte_entera_formateada
+                parte_entera = parte_entera_formateada
+            
+            # Eliminar ceros innecesarios al final de la parte decimal
+            if parte_decimal:
+                parte_decimal = parte_decimal.rstrip('0')
+                if parte_decimal:
+                    formatted = parte_entera + "," + parte_decimal
+                else:
+                    formatted = parte_entera
+            else:
+                formatted = parte_entera
             
             return formatted
         return str(x)
@@ -3029,14 +3100,8 @@ def format_percent(x, decimales=1):
         if pd.isnull(x) or x is None:
             return ""
         # NO multiplicar por 100 porque ya viene en formato de porcentaje
-        formatted = locale.format_string(f"%.{decimales}f", x, grouping=True)
-        
-        # Asegurar formato español para porcentajes
-        if '.' in formatted and ',' not in formatted:
-            parts = formatted.split('.')
-            if len(parts) == 2 and len(parts[0]) <= 3:
-                formatted = parts[0] + ',' + parts[1]
-        
+        # Usar format_num sin el símbolo de porcentaje
+        formatted = format_num(x, decimales)
         return formatted + "%"
     except Exception:
         return str(x) + "%" if x is not None else ""
@@ -3062,6 +3127,24 @@ def format_fraction_as_percent(x, decimales=1):
         return formatted + "%"
     except Exception:
         return str(x * 100) + "%" if x is not None else ""
+
+def format_plotly_pie_percent(percent_value):
+    """
+    Formatea porcentajes específicamente para gráficos de torta de Plotly
+    Convierte del formato inglés (12.3) al formato español (12,3%)
+    """
+    try:
+        if isinstance(percent_value, (int, float)):
+            formatted = locale.format_string("%.1f", percent_value, grouping=True)
+            # Asegurar formato español
+            if '.' in formatted and ',' not in formatted:
+                parts = formatted.split('.')
+                if len(parts) == 2:
+                    formatted = parts[0] + ',' + parts[1]
+            return formatted + "%"
+        return str(percent_value) + "%"
+    except Exception:
+        return str(percent_value) + "%"
 
 # -----------------------------
 # Resultados Finales
@@ -3093,7 +3176,7 @@ def mostrar_resultados_anual(em_total, prod_total):
     st.info(
         "En esta sección se presentan los resultados globales y desglosados del cálculo de huella de carbono para el cultivo anual. "
         "Se muestran los resultados globales del sistema productivo, el detalle por ciclo productivo y por fuente de emisión, "
-        "y finalmente el desglose interno de cada fuente. Todas las tablas muestran emisiones en kg CO₂e/ha·año y kg CO₂e/kg fruta. "
+        "y finalmente el desglose interno de cada fuente. Todas las tablas muestran emisiones en kg CO₂e/ha·año y kg CO₂e/kg fruta·año. "
         "Todos los gráficos muestran emisiones en kg CO₂e/ha·año."
     )
 
@@ -3114,9 +3197,9 @@ def mostrar_resultados_anual(em_total, prod_total):
 
     # --- Resultados globales ---
     st.markdown("#### Resultados globales")
-    st.metric("Total emisiones estimadas", format_num(em_total, 2) + " kg CO₂e/ha·año")
+    st.metric("Huella de carbono por hectárea", format_num(em_total, 2) + " kg CO₂e/ha·año")
     if prod_total > 0:
-        st.metric("Emisiones por kg de fruta", format_num(em_total / prod_total, 3) + " kg CO₂e/kg fruta")
+        st.metric("Huella de carbono por kg de fruta", format_num(em_total / prod_total, 3) + " kg CO₂e/kg fruta")
     else:
         st.warning("No se ha ingresado producción total. No es posible calcular emisiones por kg de fruta.")
 
@@ -3129,10 +3212,10 @@ def mostrar_resultados_anual(em_total, prod_total):
         fig_bar = px.bar(
             x=fuentes,
             y=valores_fuentes,
-            labels={"x": "Fuente", "y": "Emisiones (kg CO₂e/ha·año)"},
+            labels={"x": "Fuente", "y": "Huella de carbono (kg CO₂e/ha·año)"},
             color=fuentes,
             color_discrete_sequence=px.colors.qualitative.Set2,
-            title="Emisiones por fuente en el año",
+            title="Huella de carbono por fuente en el año",
         )
         y_max = max(valores_fuentes) if valores_fuentes else 1
         textos = [format_num(v) for v in valores_fuentes]
@@ -3144,11 +3227,19 @@ def mostrar_resultados_anual(em_total, prod_total):
             textposition="top center",
             showlegend=False
         ))
-        fig_bar.update_layout(showlegend=False, height=400)
+        fig_bar.update_layout(showlegend=False, height=400, separators=',.')
         fig_bar.update_yaxes(range=[0, y_max * 1.15])
         st.plotly_chart(fig_bar, use_container_width=True, key=get_unique_key())
     with col2:
         if total_fuentes > 0:
+            # Calcular porcentajes con formato español
+            porcentajes = [(v/total_fuentes)*100 for v in valores_fuentes]
+            # Crear textos personalizados con formato español
+            textos_personalizados = [
+                f"{fuente}<br>{format_plotly_pie_percent(pct)}" 
+                for fuente, pct in zip(fuentes, porcentajes)
+            ]
+            
             fig_pie = px.pie(
                 names=fuentes,
                 values=valores_fuentes,
@@ -3157,45 +3248,54 @@ def mostrar_resultados_anual(em_total, prod_total):
                 color_discrete_sequence=px.colors.qualitative.Set2,
                 hole=0.3
             )
-            fig_pie.update_traces(textinfo='percent+label')
+            # Actualizar para mostrar nombres y porcentajes con formato español
+            fig_pie.update_traces(
+                textinfo='label+percent',
+                texttemplate='%{label}<br>%{percent}',
+                hovertemplate='<b>%{label}</b><br>Huella de carbono: %{value:.2f} kg CO₂e/ha·año<br>Porcentaje: %{percent}<extra></extra>'
+            )
+            # Configurar formato de números para el hover y texto
+            fig_pie.update_layout(
+                separators=',.'  # Formato español: coma decimal, punto miles
+            )
         else:
             fig_pie = px.pie(names=["Sin datos"], values=[1], color_discrete_sequence=["#cccccc"])
-        fig_pie.update_layout(showlegend=False, height=400)
+        fig_pie.update_layout(showlegend=False, height=400, separators=',.')
         st.plotly_chart(fig_pie, use_container_width=True, key=get_unique_key())
 
     st.markdown("---")
 
     # --- Resultados por ciclo ---
     if emisiones_ciclos:
-        st.markdown("#### Emisiones por ciclo productivo")
+        st.markdown("#### Huella de carbono por ciclo productivo")
         df_ciclos = pd.DataFrame(emisiones_ciclos, columns=[
             "Ciclo",
-            "Emisiones (kg CO₂e/ha·ciclo)",
+            "Huella de carbono (kg CO₂e/ha·ciclo)",
             "Producción (kg/ha·ciclo)"
         ])
         df_ciclos["Nombre ciclo"] = ["Ciclo " + str(c) for c in df_ciclos["Ciclo"]]
-        df_ciclos["Emisiones (kg CO₂e/kg fruta·ciclo)"] = df_ciclos.apply(
-            lambda row: row["Emisiones (kg CO₂e/ha·ciclo)"] / row["Producción (kg/ha·ciclo)"] if row["Producción (kg/ha·ciclo)"] > 0 else None,
+        df_ciclos["Huella de carbono (kg CO₂e/kg fruta·ciclo)"] = df_ciclos.apply(
+            lambda row: row["Huella de carbono (kg CO₂e/ha·ciclo)"] / row["Producción (kg/ha·ciclo)"] if row["Producción (kg/ha·ciclo)"] > 0 else None,
             axis=1
         )
-        total_emisiones_ciclos = df_ciclos["Emisiones (kg CO₂e/ha·ciclo)"].sum()
+        total_emisiones_ciclos = df_ciclos["Huella de carbono (kg CO₂e/ha·ciclo)"].sum()
         if total_emisiones_ciclos > 0:
-            df_ciclos["% contribución"] = df_ciclos["Emisiones (kg CO₂e/ha·ciclo)"] / total_emisiones_ciclos * 100
+            df_ciclos["% contribución"] = df_ciclos["Huella de carbono (kg CO₂e/ha·ciclo)"] / total_emisiones_ciclos * 100
         else:
             df_ciclos["% contribución"] = 0
 
-        st.markdown("**Tabla: Emisiones y producción por ciclo**")
+        st.markdown("**Tabla: Huella de carbono y producción por ciclo**")
         st.dataframe(
             df_ciclos[[
                 "Nombre ciclo",
-                "Emisiones (kg CO₂e/ha·ciclo)",
+                "Huella de carbono (kg CO₂e/ha·ciclo)",
                 "Producción (kg/ha·ciclo)",
-                "Emisiones (kg CO₂e/kg fruta·ciclo)",
+                "Huella de carbono (kg CO₂e/kg fruta·ciclo)",
                 "% contribución"
             ]].style.format({
-                "Emisiones (kg CO₂e/ha·ciclo)": format_num,
+                "Huella de carbono (kg CO₂e/ha·ciclo)": format_num,
                 "Producción (kg/ha·ciclo)": format_num,
-                "Emisiones (kg CO₂e/kg fruta·ciclo)": lambda x: format_num(x, 3),
+                "Huella de carbono (kg CO₂e/kg fruta·ciclo)": lambda x: format_num(x, 3),
                 "% contribución": format_percent
             }),
             hide_index=True
@@ -3203,27 +3303,27 @@ def mostrar_resultados_anual(em_total, prod_total):
         st.caption("Unidades: kg CO₂e/ha·ciclo, kg/ha·ciclo, kg CO₂e/kg fruta·ciclo, % sobre el total anual.")
 
         # Gráfico de barras por ciclo (kg CO₂e/ha)
-        st.markdown("##### Gráfico: Emisiones por ciclo (kg CO₂e/ha·ciclo)")
-        y_max_ciclo = df_ciclos["Emisiones (kg CO₂e/ha·ciclo)"].max() if not df_ciclos.empty else 1
-        textos_ciclo = [format_num(v) for v in df_ciclos["Emisiones (kg CO₂e/ha·ciclo)"]]
+        st.markdown("##### Gráfico: Huella de carbono por ciclo (kg CO₂e/ha·ciclo)")
+        y_max_ciclo = df_ciclos["Huella de carbono (kg CO₂e/ha·ciclo)"].max() if not df_ciclos.empty else 1
+        textos_ciclo = [format_num(v) for v in df_ciclos["Huella de carbono (kg CO₂e/ha·ciclo)"]]
         fig_ciclo = px.bar(
             df_ciclos,
             x="Nombre ciclo",
-            y="Emisiones (kg CO₂e/ha·ciclo)",
+            y="Huella de carbono (kg CO₂e/ha·ciclo)",
             color="Nombre ciclo",
             color_discrete_sequence=px.colors.qualitative.Pastel,
-            labels={"Emisiones (kg CO₂e/ha·ciclo)": "Emisiones (kg CO₂e/ha·ciclo)"},
-            title="Emisiones por ciclo"
+            labels={"Huella de carbono (kg CO₂e/ha·ciclo)": "Huella de carbono (kg CO₂e/ha·ciclo)"},
+            title="Huella de carbono por ciclo"
         )
         fig_ciclo.add_trace(go.Scatter(
             x=df_ciclos["Nombre ciclo"],
-            y=df_ciclos["Emisiones (kg CO₂e/ha·ciclo)"],
+            y=df_ciclos["Huella de carbono (kg CO₂e/ha·ciclo)"],
             text=textos_ciclo,
             mode="text",
             textposition="top center",
             showlegend=False
         ))
-        fig_ciclo.update_layout(showlegend=False, height=400)
+        fig_ciclo.update_layout(showlegend=False, height=400, separators=',.')
         fig_ciclo.update_yaxes(range=[0, y_max_ciclo * 1.15])
         st.plotly_chart(fig_ciclo, use_container_width=True, key=get_unique_key())
 
@@ -3232,7 +3332,7 @@ def mostrar_resultados_anual(em_total, prod_total):
     # --- Resultados por fuente en cada ciclo ---
     desglose_fuentes_ciclos = st.session_state.get("desglose_fuentes_ciclos", [])
     if desglose_fuentes_ciclos:
-        st.markdown("#### Emisiones por fuente en cada ciclo")
+        st.markdown("#### Huella de carbono por fuente en cada ciclo")
         fuentes = ["Fertilizantes", "Agroquímicos", "Riego", "Maquinaria", "Residuos"]
         for idx, ciclo in enumerate(desglose_fuentes_ciclos):
             st.markdown(f"##### {'Ciclo ' + str(ciclo['Ciclo']) if 'Ciclo' in ciclo else 'Ciclo típico'}")
@@ -3246,45 +3346,45 @@ def mostrar_resultados_anual(em_total, prod_total):
             total_fuente = sum([ciclo[f] for f in fuentes])
             df_fuentes_ciclo = pd.DataFrame({
                 "Fuente": fuentes,
-                "Emisiones (kg CO₂e/ha·ciclo)": [ciclo[f] for f in fuentes]
+                "Huella de carbono (kg CO₂e/ha·ciclo)": [ciclo[f] for f in fuentes]
             })
             if prod and prod > 0:
-                df_fuentes_ciclo["Emisiones (kg CO₂e/kg fruta·ciclo)"] = df_fuentes_ciclo["Emisiones (kg CO₂e/ha·ciclo)"] / prod
+                df_fuentes_ciclo["Huella de carbono (kg CO₂e/kg fruta·ciclo)"] = df_fuentes_ciclo["Huella de carbono (kg CO₂e/ha·ciclo)"] / prod
             else:
-                df_fuentes_ciclo["Emisiones (kg CO₂e/kg fruta·ciclo)"] = None
+                df_fuentes_ciclo["Huella de carbono (kg CO₂e/kg fruta·ciclo)"] = None
             if total_fuente > 0:
-                df_fuentes_ciclo["% contribución"] = df_fuentes_ciclo["Emisiones (kg CO₂e/ha·ciclo)"] / total_fuente * 100
+                df_fuentes_ciclo["% contribución"] = df_fuentes_ciclo["Huella de carbono (kg CO₂e/ha·ciclo)"] / total_fuente * 100
             else:
                 df_fuentes_ciclo["% contribución"] = 0
 
             st.dataframe(df_fuentes_ciclo.style.format({
-                "Emisiones (kg CO₂e/ha·ciclo)": format_num,
-                "Emisiones (kg CO₂e/kg fruta·ciclo)": lambda x: format_num(x, 3),
+                "Huella de carbono (kg CO₂e/ha·ciclo)": format_num,
+                "Huella de carbono (kg CO₂e/kg fruta·ciclo)": lambda x: format_num(x, 3),
                 "% contribución": format_percent
             }), hide_index=True)
             st.caption("Unidades: kg CO₂e/ha·ciclo, kg CO₂e/kg fruta·ciclo, % sobre el total del ciclo.")
 
             # Gráfico de barras por fuente en el ciclo (kg CO₂e/ha)
-            st.markdown("##### Gráfico: Emisiones por fuente en el ciclo (kg CO₂e/ha·ciclo)")
-            y_max_fuente = df_fuentes_ciclo["Emisiones (kg CO₂e/ha·ciclo)"].max() if not df_fuentes_ciclo.empty else 1
-            textos_fuente = [format_num(v) for v in df_fuentes_ciclo["Emisiones (kg CO₂e/ha·ciclo)"]]
+            st.markdown("##### Gráfico: Huella de carbono por fuente en el ciclo (kg CO₂e/ha·ciclo)")
+            y_max_fuente = df_fuentes_ciclo["Huella de carbono (kg CO₂e/ha·ciclo)"].max() if not df_fuentes_ciclo.empty else 1
+            textos_fuente = [format_num(v) for v in df_fuentes_ciclo["Huella de carbono (kg CO₂e/ha·ciclo)"]]
             fig_fuente = px.bar(
                 df_fuentes_ciclo,
                 x="Fuente",
-                y="Emisiones (kg CO₂e/ha·ciclo)",
+                y="Huella de carbono (kg CO₂e/ha·ciclo)",
                 color="Fuente",
                 color_discrete_sequence=px.colors.qualitative.Set2,
-                title="Emisiones por fuente en el ciclo"
+                title="Huella de carbono por fuente en el ciclo"
             )
             fig_fuente.add_trace(go.Scatter(
                 x=df_fuentes_ciclo["Fuente"],
-                y=df_fuentes_ciclo["Emisiones (kg CO₂e/ha·ciclo)"],
+                y=df_fuentes_ciclo["Huella de carbono (kg CO₂e/ha·ciclo)"],
                 text=textos_fuente,
                 mode="text",
                 textposition="top center",
                 showlegend=False
             ))
-            fig_fuente.update_layout(showlegend=False, height=400)
+            fig_fuente.update_layout(showlegend=False, height=400, separators=',.')
             fig_fuente.update_yaxes(range=[0, y_max_fuente * 1.15])
             st.plotly_chart(fig_fuente, use_container_width=True, key=get_unique_key())
 
@@ -3310,30 +3410,39 @@ def mostrar_resultados_anual(em_total, prod_total):
                             total_fert = df_fert["total"].sum()
                             df_fert["% contribución"] = df_fert["total"] / total_fert * 100
                             if prod and prod > 0:
-                                df_fert["Emisiones (kg CO₂e/kg fruta·ciclo)"] = df_fert["total"] / prod
+                                df_fert["Huella de carbono total (kg CO₂e/kg fruta·ciclo)"] = df_fert["total"] / prod
                             else:
-                                df_fert["Emisiones (kg CO₂e/kg fruta·ciclo)"] = None
+                                df_fert["Huella de carbono total (kg CO₂e/kg fruta·ciclo)"] = None
                             st.markdown("**Tabla: Desglose de fertilizantes (orgánicos e inorgánicos)**")
+                            df_fert_display = df_fert.rename(columns={
+                                "emision_produccion": "Huella de carbono producción (kg CO₂e/ha·ciclo)",
+                                "emision_co2_urea": "Huella de carbono CO₂ urea (kg CO₂e/ha·ciclo)",
+                                "emision_n2o_directa": "Huella de carbono N₂O directa (kg CO₂e/ha·ciclo)",
+                                "emision_n2o_ind_volatilizacion": "Huella de carbono N₂O ind. volatilización (kg CO₂e/ha·ciclo)",
+                                "emision_n2o_ind_lixiviacion": "Huella de carbono N₂O ind. lixiviación (kg CO₂e/ha·ciclo)",
+                                "emision_n2o_indirecta": "Huella de carbono N₂O indirecta (kg CO₂e/ha·ciclo)",
+                                "total": "Huella de carbono total (kg CO₂e/ha·ciclo)"
+                            })
                             st.dataframe(
-                                df_fert[[
-                                    "Tipo fertilizante", "tipo", "cantidad", "emision_produccion", "emision_co2_urea",
-                                    "emision_n2o_directa", "emision_n2o_ind_volatilizacion", "emision_n2o_ind_lixiviacion",
-                                    "emision_n2o_indirecta", "total", "Emisiones (kg CO₂e/kg fruta·ciclo)", "% contribución"
+                                df_fert_display[[
+                                    "Tipo fertilizante", "tipo", "cantidad", "Huella de carbono producción (kg CO₂e/ha·ciclo)", "Huella de carbono CO₂ urea (kg CO₂e/ha·ciclo)",
+                                    "Huella de carbono N₂O directa (kg CO₂e/ha·ciclo)", "Huella de carbono N₂O ind. volatilización (kg CO₂e/ha·ciclo)", "Huella de carbono N₂O ind. lixiviación (kg CO₂e/ha·ciclo)",
+                                    "Huella de carbono N₂O indirecta (kg CO₂e/ha·ciclo)", "Huella de carbono total (kg CO₂e/ha·ciclo)", "Huella de carbono total (kg CO₂e/kg fruta·ciclo)", "% contribución"
                                 ]].style.format({
                                     "cantidad": format_num,
-                                    "emision_produccion": format_num,
-                                    "emision_co2_urea": format_num,
-                                    "emision_n2o_directa": format_num,
-                                    "emision_n2o_ind_volatilizacion": format_num,
-                                    "emision_n2o_ind_lixiviacion": format_num,
-                                    "emision_n2o_indirecta": format_num,
-                                    "total": format_num,
-                                    "Emisiones (kg CO₂e/kg fruta·ciclo)": lambda x: format_num(x, 3),
+                                    "Huella de carbono producción (kg CO₂e/ha·ciclo)": format_num,
+                                    "Huella de carbono CO₂ urea (kg CO₂e/ha·ciclo)": format_num,
+                                    "Huella de carbono N₂O directa (kg CO₂e/ha·ciclo)": format_num,
+                                    "Huella de carbono N₂O ind. volatilización (kg CO₂e/ha·ciclo)": format_num,
+                                    "Huella de carbono N₂O ind. lixiviación (kg CO₂e/ha·ciclo)": format_num,
+                                    "Huella de carbono N₂O indirecta (kg CO₂e/ha·ciclo)": format_num,
+                                    "Huella de carbono total (kg CO₂e/ha·ciclo)": format_num,
+                                    "Huella de carbono total (kg CO₂e/kg fruta·ciclo)": lambda x: format_num(x, 3),
                                     "% contribución": format_percent
                                 }),
                                 hide_index=True
                             )
-                            st.caption("Unidades: cantidad (kg/ha·ciclo), emisiones (kg CO₂e/ha), % sobre el total de fertilizantes. N₂O indirecta se desglosa en volatilización y lixiviación. CO₂ urea incluye hidrólisis según IPCC 2006.")
+                            st.caption("Unidades: cantidad (kg/ha·ciclo), huella de carbono (kg CO₂e/ha·ciclo), % sobre el total de fertilizantes. N₂O indirecta se desglosa en volatilización y lixiviación. CO₂ urea incluye hidrólisis según IPCC 2006.")
                             
                             # --- NUEVO: Gráfico de torta Orgánicos vs Inorgánicos ---
                             st.markdown("**Gráfico: Contribución orgánicos vs inorgánicos (torta)**")
@@ -3346,8 +3455,17 @@ def mostrar_resultados_anual(em_total, prod_total):
                                     color_discrete_sequence=["#66c2a5", "#fc8d62"],
                                     hole=0.3
                                 )
-                                fig_pie_tipo.update_traces(textinfo='percent+label')
-                                fig_pie_tipo.update_layout(showlegend=True, height=400)
+                                # Configurar formato español para nombres y porcentajes
+                                fig_pie_tipo.update_traces(
+                                    textinfo='label+percent',
+                                    texttemplate='%{label}<br>%{percent}',
+                                    hovertemplate='<b>%{label}</b><br>Huella de carbono: %{value:.2f} kg CO₂e/ha·ciclo<br>Porcentaje: %{percent}<extra></extra>'
+                                )
+                                fig_pie_tipo.update_layout(
+                                    showlegend=True, 
+                                    height=400,
+                                    separators=',.'  # Formato español
+                                )
                                 st.plotly_chart(fig_pie_tipo, use_container_width=True, key=get_unique_key())
                             
                             # --- NUEVO: Gráficos de torta por cada tipo de fertilizante ---
@@ -3373,8 +3491,17 @@ def mostrar_resultados_anual(em_total, prod_total):
                                         title=f"Contribución de cada fertilizante {tipo_cat.lower()}",
                                         hole=0.3
                                     )
-                                    fig_pie_individual.update_traces(textinfo='percent+label')
-                                    fig_pie_individual.update_layout(showlegend=True, height=400)
+                                    # Configurar formato español para nombres y porcentajes
+                                    fig_pie_individual.update_traces(
+                                        textinfo='label+percent',
+                                        texttemplate='%{label}<br>%{percent}',
+                                        hovertemplate='<b>%{label}</b><br>Huella de carbono: %{value:.2f} kg CO₂e/ha·ciclo<br>Porcentaje: %{percent}<extra></extra>'
+                                    )
+                                    fig_pie_individual.update_layout(
+                                        showlegend=True, 
+                                        height=400,
+                                        separators=',.'  # Formato español
+                                    )
                                     st.plotly_chart(fig_pie_individual, use_container_width=True, key=get_unique_key())
                             
                             # --- Gráficos de barras apiladas por tipo de emisión (orgánico e inorgánico por separado) ---
@@ -3419,9 +3546,10 @@ def mostrar_resultados_anual(em_total, prod_total):
                                     ))
                                     fig_fert.update_layout(
                                         barmode='stack',
-                                        yaxis_title="Emisiones (kg CO₂e/ha·ciclo)",
-                                        title=f"Emisiones por fertilizante {tipo_cat.lower()} y tipo de emisión",
-                                        height=400
+                                        yaxis_title="Huella de carbono (kg CO₂e/ha·ciclo)",
+                                        title=f"Huella de carbono por fertilizante {tipo_cat.lower()} y tipo de emisión",
+                                        height=400,
+                                        separators=',.'  # Formato español
                                     )
                                     fig_fert.update_yaxes(range=[0, max(totales) * 1.15 if len(totales) > 0 else 1])
                                     st.plotly_chart(fig_fert, use_container_width=True, key=get_unique_key())
@@ -3432,63 +3560,94 @@ def mostrar_resultados_anual(em_total, prod_total):
                             total_agro = df_agro["emisiones"].sum()
                             df_agro["% contribución"] = df_agro["emisiones"] / total_agro * 100
                             if prod and prod > 0:
-                                df_agro["Emisiones (kg CO₂e/kg fruta·ciclo)"] = df_agro["emisiones"] / prod
+                                df_agro["Huella de carbono (kg CO₂e/kg fruta·ciclo)"] = df_agro["emisiones"] / prod
                             else:
-                                df_agro["Emisiones (kg CO₂e/kg fruta·ciclo)"] = None
+                                df_agro["Huella de carbono (kg CO₂e/kg fruta·ciclo)"] = None
+                            # Renombrar columna para mostrar en tabla
+                            df_agro["Huella de carbono (kg CO₂e/ha·ciclo)"] = df_agro["emisiones"]
                             st.markdown("**Tabla: Desglose de agroquímicos**")
-                            st.dataframe(df_agro[["categoria", "tipo", "cantidad_ia", "emisiones", "Emisiones (kg CO₂e/kg fruta·ciclo)", "% contribución"]].style.format({
+                            st.dataframe(df_agro[["nombre_comercial", "categoria", "tipo", "cantidad_ia", "Huella de carbono (kg CO₂e/ha·ciclo)", "Huella de carbono (kg CO₂e/kg fruta·ciclo)", "% contribución"]].style.format({
                                 "cantidad_ia": format_num,
-                                "emisiones": format_num,
-                                "Emisiones (kg CO₂e/kg fruta·ciclo)": lambda x: format_num(x, 3),
+                                "Huella de carbono (kg CO₂e/ha·ciclo)": format_num,
+                                "Huella de carbono (kg CO₂e/kg fruta·ciclo)": lambda x: format_num(x, 3),
                                 "% contribución": format_percent
                             }), hide_index=True)
-                            st.caption("Unidades: cantidad ingrediente activo (kg/ha·ciclo), emisiones (kg CO₂e/ha·ciclo y kg CO₂e/kg fruta·ciclo), % sobre el total de agroquímicos.")
+                            st.caption("Unidades: cantidad ingrediente activo (kg/ha·ciclo), huella de carbono (kg CO₂e/ha·ciclo y kg CO₂e/kg fruta·ciclo), % sobre el total de agroquímicos.")
 
-                            # --- Gráfico de barras apiladas por categoría y tipo (kg CO₂e/ha) ---
-                            st.markdown("**Gráfico: Emisiones de agroquímicos por categoría y tipo (kg CO₂e/ha·ciclo)**")
-                            df_group = df_agro.groupby(["categoria", "tipo"]).agg({"emisiones": "sum"}).reset_index()
-                            categorias = df_group["categoria"].unique()
-                            tipos = df_group["tipo"].unique()
+                            # --- Gráfico de barras por nombre comercial (kg CO₂e/ha) ---
+                            st.markdown("**Gráfico: Emisiones de agroquímicos por nombre comercial (kg CO₂e/ha·ciclo)**")
+                            # Agrupar por categoría para crear las barras
+                            categorias = df_agro["categoria"].unique()
                             fig_agro = go.Figure()
-                            for tipo in tipos:
-                                vals = []
-                                for cat in categorias:
-                                    row = df_group[(df_group["categoria"] == cat) & (df_group["tipo"] == tipo)]
-                                    vals.append(row["emisiones"].values[0] if not row.empty else 0)
-                                fig_agro.add_bar(x=categorias, y=vals, name=tipo)
-                            totales = df_group.groupby("categoria")["emisiones"].sum().reindex(categorias).values
-                            textos_tot = [format_num(v) for v in totales]
-                            fig_agro.add_trace(go.Scatter(
-                                x=categorias,
-                                y=totales,
-                                text=textos_tot,
-                                mode="text",
-                                textposition="top center",
-                                showlegend=False
-                            ))
+                            
+                            for categoria in categorias:
+                                df_cat = df_agro[df_agro["categoria"] == categoria]
+                                fig_agro.add_bar(
+                                    x=df_cat["nombre_comercial"], 
+                                    y=df_cat["emisiones"], 
+                                    name=categoria,
+                                    text=[format_num(v) for v in df_cat["emisiones"]],
+                                    textposition="outside"
+                                )
+                            
                             fig_agro.update_layout(
-                                barmode='stack',
-                                yaxis_title="Emisiones (kg CO₂e/ha·ciclo)",
-                                title="Emisiones de agroquímicos por categoría y tipo",
-                                height=400
+                                barmode='group',
+                                yaxis_title="Huella de carbono (kg CO₂e/ha·ciclo)",
+                                title="Huella de carbono de agroquímicos por nombre comercial",
+                                height=400,
+                                separators=',.',  # Formato español
+                                xaxis_title="Nombre comercial"
                             )
-                            y_max_agro = max(totales) if len(totales) > 0 else 1
+                            y_max_agro = df_agro["emisiones"].max() if not df_agro.empty else 1
                             fig_agro.update_yaxes(range=[0, y_max_agro * 1.15])
                             st.plotly_chart(fig_agro, use_container_width=True, key=get_unique_key())
 
                             # --- Gráfico de torta por categoría (kg CO₂e/ha) ---
-                            st.markdown("**Gráfico: % de contribución de cada categoría de agroquímico (kg CO₂e/ha·ciclo)**")
+                            st.markdown("**Gráfico: % de contribución por categoría de agroquímico (kg CO₂e/ha·ciclo)**")
                             df_cat = df_agro.groupby("categoria").agg({"emisiones": "sum"}).reset_index()
-                            fig_pie_agro = px.pie(
+                            fig_pie_cat = px.pie(
                                 df_cat,
                                 names="categoria",
                                 values="emisiones",
-                                title="Contribución de cada categoría de agroquímico",
+                                title="Contribución por categoría de agroquímico",
+                                color_discrete_sequence=px.colors.qualitative.Set1,
+                                hole=0.3
+                            )
+                            # Configurar formato español para nombres y porcentajes
+                            fig_pie_cat.update_traces(
+                                textinfo='label+percent',
+                                texttemplate='%{label}<br>%{percent}',
+                                hovertemplate='<b>%{label}</b><br>Huella de carbono: %{value:.2f} kg CO₂e/ha·ciclo<br>Porcentaje: %{percent}<extra></extra>'
+                            )
+                            fig_pie_cat.update_layout(
+                                showlegend=True, 
+                                height=400,
+                                separators=',.'  # Formato español
+                            )
+                            st.plotly_chart(fig_pie_cat, use_container_width=True, key=get_unique_key())
+
+                            # --- Gráfico de torta por nombre comercial individual (kg CO₂e/ha) ---
+                            st.markdown("**Gráfico: % de contribución de cada agroquímico individual (kg CO₂e/ha·ciclo)**")
+                            fig_pie_agro = px.pie(
+                                df_agro,
+                                names="nombre_comercial",
+                                values="emisiones",
+                                title="Contribución individual de cada agroquímico",
                                 color_discrete_sequence=px.colors.qualitative.Set2,
                                 hole=0.3
                             )
-                            fig_pie_agro.update_traces(textinfo='percent+label')
-                            fig_pie_agro.update_layout(showlegend=True, height=400)
+                            # Configurar formato español para nombres y porcentajes
+                            fig_pie_agro.update_traces(
+                                textinfo='label+percent',
+                                texttemplate='%{label}<br>%{percent}',
+                                hovertemplate='<b>%{label}</b><br>Categoría: %{customdata}<br>Huella de carbono: %{value:.2f} kg CO₂e/ha·ciclo<br>Porcentaje: %{percent}<extra></extra>',
+                                customdata=df_agro["categoria"]
+                            )
+                            fig_pie_agro.update_layout(
+                                showlegend=True, 
+                                height=400,
+                                separators=',.'  # Formato español
+                            )
                             st.plotly_chart(fig_pie_agro, use_container_width=True, key=get_unique_key())
                     # --- MAQUINARIA ---
                     elif fuente == "Maquinaria" and ciclo.get("desglose_maquinaria"):
@@ -3497,17 +3656,19 @@ def mostrar_resultados_anual(em_total, prod_total):
                             total_maq = df_maq["emisiones"].sum()
                             df_maq["% contribución"] = df_maq["emisiones"] / total_maq * 100
                             if prod and prod > 0:
-                                df_maq["Emisiones (kg CO₂e/kg fruta·ciclo)"] = df_maq["emisiones"] / prod
+                                df_maq["Huella de carbono (kg CO₂e/kg fruta·ciclo)"] = df_maq["emisiones"] / prod
                             else:
-                                df_maq["Emisiones (kg CO₂e/kg fruta·ciclo)"] = None
+                                df_maq["Huella de carbono (kg CO₂e/kg fruta·ciclo)"] = None
+                            # Renombrar columna para mostrar en tabla
+                            df_maq["Huella de carbono (kg CO₂e/ha·ciclo)"] = df_maq["emisiones"]
                             st.markdown("**Tabla: Desglose de maquinaria**")
-                            st.dataframe(df_maq[["nombre_labor", "tipo_maquinaria", "tipo_combustible", "litros", "emisiones", "Emisiones (kg CO₂e/kg fruta·ciclo)", "% contribución"]].style.format({
+                            st.dataframe(df_maq[["nombre_labor", "tipo_maquinaria", "tipo_combustible", "litros", "Huella de carbono (kg CO₂e/ha·ciclo)", "Huella de carbono (kg CO₂e/kg fruta·ciclo)", "% contribución"]].style.format({
                                 "litros": format_num,
-                                "emisiones": format_num,
-                                "Emisiones (kg CO₂e/kg fruta·ciclo)": lambda x: format_num(x, 3),
+                                "Huella de carbono (kg CO₂e/ha·ciclo)": format_num,
+                                "Huella de carbono (kg CO₂e/kg fruta·ciclo)": lambda x: format_num(x, 3),
                                 "% contribución": format_percent
                             }), hide_index=True)
-                            st.caption("Unidades: litros (L/ha·ciclo), emisiones (kg CO₂e/ha·ciclo y kg CO₂e/kg fruta·ciclo), % sobre el total de maquinaria.")
+                            st.caption("Unidades: litros (L/ha·ciclo), huella de carbono (kg CO₂e/ha·ciclo y kg CO₂e/kg fruta·ciclo), % sobre el total de maquinaria.")
 
                             # --- Gráfico de torta: emisiones por labor (kg CO₂e/ha) ---
                             st.markdown("**Gráfico: % de contribución de cada labor (torta, kg CO₂e/ha·ciclo)**")
@@ -3520,8 +3681,17 @@ def mostrar_resultados_anual(em_total, prod_total):
                                 color_discrete_sequence=px.colors.qualitative.Set2,
                                 hole=0.3
                             )
-                            fig_pie_labor.update_traces(textinfo='percent+label')
-                            fig_pie_labor.update_layout(showlegend=True, height=400)
+                            # Configurar formato español para nombres y porcentajes
+                            fig_pie_labor.update_traces(
+                                textinfo='label+percent',
+                                texttemplate='%{label}<br>%{percent}',
+                                hovertemplate='<b>%{label}</b><br>Huella de carbono: %{value:.2f} kg CO₂e/ha·ciclo<br>Porcentaje: %{percent}<extra></extra>'
+                            )
+                            fig_pie_labor.update_layout(
+                                showlegend=True, 
+                                height=400,
+                                separators=',.'  # Formato español
+                            )
                             st.plotly_chart(fig_pie_labor, use_container_width=True, key=get_unique_key())
 
                             # --- Gráfico de torta: emisiones por maquinaria dentro de cada labor (kg CO₂e/ha) ---
@@ -3538,8 +3708,17 @@ def mostrar_resultados_anual(em_total, prod_total):
                                         color_discrete_sequence=px.colors.qualitative.Pastel,
                                         hole=0.3
                                     )
-                                    fig_pie_maq.update_traces(textinfo='percent+label')
-                                    fig_pie_maq.update_layout(showlegend=True, height=400)
+                                    # Configurar formato español para nombres y porcentajes
+                                    fig_pie_maq.update_traces(
+                                        textinfo='label+percent',
+                                        texttemplate='%{label}<br>%{percent}',
+                                        hovertemplate='<b>%{label}</b><br>Huella de carbono: %{value:.2f} kg CO₂e/ha·ciclo<br>Porcentaje: %{percent}<extra></extra>'
+                                    )
+                                    fig_pie_maq.update_layout(
+                                        showlegend=True, 
+                                        height=400,
+                                        separators=',.'  # Formato español
+                                    )
                                     st.plotly_chart(fig_pie_maq, use_container_width=True, key=get_unique_key())
 
                             # --- Gráfico de barras apiladas: labor (X), emisiones (Y), apilado por maquinaria (kg CO₂e/ha) ---
@@ -3571,9 +3750,10 @@ def mostrar_resultados_anual(em_total, prod_total):
                             y_max_maq = max(totales) if len(totales) > 0 else 1
                             fig_maq.update_layout(
                                 barmode='stack',
-                                yaxis_title="Emisiones (kg CO₂e/ha·ciclo)",
-                                title="Emisiones por labor y tipo de maquinaria",
-                                height=400
+                                yaxis_title="Huella de carbono (kg CO₂e/ha·ciclo)",
+                                title="Huella de carbono por labor y tipo de maquinaria",
+                                height=400,
+                                separators=',.'  # Formato español
                             )
                             fig_maq.update_yaxes(range=[0, y_max_maq * 1.15])
                             st.plotly_chart(fig_maq, use_container_width=True, key=get_unique_key())
@@ -3587,54 +3767,54 @@ def mostrar_resultados_anual(em_total, prod_total):
                                 "Actividad": ea.get("actividad", ""),
                                 "Tipo actividad": ea.get("tipo_actividad", ""),
                                 "Consumo agua (m³)": ea.get("agua_total_m3", 0),
-                                "Emisiones agua (kg CO₂e)": ea.get("emisiones_agua", 0),
+                                "Huella de carbono agua (kg CO₂e/ha·ciclo)": ea.get("emisiones_agua", 0),
                                 "Consumo energía": ea.get("consumo_energia", 0),
                                 "Tipo energía": ea.get("tipo_energia", ""),
-                                "Emisiones energía (kg CO₂e)": ea.get("emisiones_energia", 0),
+                                "Huella de carbono energía (kg CO₂e/ha·ciclo)": ea.get("emisiones_energia", 0),
                             })
                         if actividades:
                             df_riego = pd.DataFrame(actividades)
-                            df_riego["Emisiones totales (kg CO₂e)"] = df_riego["Emisiones agua (kg CO₂e)"] + df_riego["Emisiones energía (kg CO₂e)"]
+                            df_riego["Huella de carbono total (kg CO₂e/ha·ciclo)"] = df_riego["Huella de carbono agua (kg CO₂e/ha·ciclo)"] + df_riego["Huella de carbono energía (kg CO₂e/ha·ciclo)"]
                             if prod and prod > 0:
-                                df_riego["Emisiones totales (kg CO₂e/kg fruta)"] = df_riego["Emisiones totales (kg CO₂e)"] / prod
+                                df_riego["Huella de carbono total (kg CO₂e/kg fruta·ciclo)"] = df_riego["Huella de carbono total (kg CO₂e/ha·ciclo)"] / prod
                             else:
-                                df_riego["Emisiones totales (kg CO₂e/kg fruta)"] = None
-                            total_riego = df_riego["Emisiones totales (kg CO₂e)"].sum()
+                                df_riego["Huella de carbono total (kg CO₂e/kg fruta·ciclo)"] = None
+                            total_riego = df_riego["Huella de carbono total (kg CO₂e/ha·ciclo)"].sum()
                             if total_riego > 0:
-                                df_riego["% contribución"] = df_riego["Emisiones totales (kg CO₂e)"] / total_riego * 100
+                                df_riego["% contribución"] = df_riego["Huella de carbono total (kg CO₂e/ha·ciclo)"] / total_riego * 100
                             else:
                                 df_riego["% contribución"] = 0
                             st.markdown("**Tabla: Desglose de riego por actividad (agua y energía apilados)**")
                             st.dataframe(df_riego[[
-                                "Actividad", "Tipo actividad", "Consumo agua (m³)", "Emisiones agua (kg CO₂e)",
-                                "Consumo energía", "Tipo energía", "Emisiones energía (kg CO₂e)",
-                                "Emisiones totales (kg CO₂e)", "Emisiones totales (kg CO₂e/kg fruta)", "% contribución"
+                                "Actividad", "Tipo actividad", "Consumo agua (m³)", "Huella de carbono agua (kg CO₂e/ha·ciclo)",
+                                "Consumo energía", "Tipo energía", "Huella de carbono energía (kg CO₂e/ha·ciclo)",
+                                "Huella de carbono total (kg CO₂e/ha·ciclo)", "Huella de carbono total (kg CO₂e/kg fruta·ciclo)", "% contribución"
                             ]].style.format({
                                 "Consumo agua (m³)": format_num,
-                                "Emisiones agua (kg CO₂e)": format_num,
+                                "Huella de carbono agua (kg CO₂e/ha·ciclo)": format_num,
                                 "Consumo energía": format_num,
-                                "Emisiones energía (kg CO₂e)": format_num,
-                                "Emisiones totales (kg CO₂e)": format_num,
-                                "Emisiones totales (kg CO₂e/kg fruta)": lambda x: format_num(x, 3),
+                                "Huella de carbono energía (kg CO₂e/ha·ciclo)": format_num,
+                                "Huella de carbono total (kg CO₂e/ha·ciclo)": format_num,
+                                "Huella de carbono total (kg CO₂e/kg fruta·ciclo)": lambda x: format_num(x, 3),
                                 "% contribución": format_percent
                             }), hide_index=True)
-                            st.caption("Unidades: agua (m³/ha), energía (kWh o litros/ha), emisiones (kg CO₂e/ha y kg CO₂e/kg fruta), % sobre el total de riego.")
+                            st.caption("Unidades: agua (m³/ha), energía (kWh o litros/ha), huella de carbono (kg CO₂e/ha y kg CO₂e/kg fruta), % sobre el total de riego.")
                             # Gráfico de barras apiladas por actividad (agua + energía)
-                            st.markdown("**Gráfico: Emisiones de riego por actividad (barras apiladas agua + energía, kg CO₂e/ha·ciclo)**")
+                            st.markdown("**Gráfico: Huella de carbono de riego por actividad (barras apiladas agua + energía, kg CO₂e/ha·ciclo)**")
                             fig_riego = go.Figure()
                             fig_riego.add_bar(
                                 x=df_riego["Actividad"],
-                                y=df_riego["Emisiones agua (kg CO₂e)"],
+                                y=df_riego["Huella de carbono agua (kg CO₂e/ha·ciclo)"],
                                 name="Agua",
                                 marker_color="#4fc3f7"
                             )
                             fig_riego.add_bar(
                                 x=df_riego["Actividad"],
-                                y=df_riego["Emisiones energía (kg CO₂e)"],
+                                y=df_riego["Huella de carbono energía (kg CO₂e/ha·ciclo)"],
                                 name="Energía",
                                 marker_color="#0288d1"
                             )
-                            totales = df_riego["Emisiones totales (kg CO₂e)"].values
+                            totales = df_riego["Huella de carbono total (kg CO₂e/ha·ciclo)"].values
                             textos_tot = [format_num(v) for v in totales]
                             fig_riego.add_trace(go.Scatter(
                                 x=df_riego["Actividad"],
@@ -3647,9 +3827,10 @@ def mostrar_resultados_anual(em_total, prod_total):
                             y_max_riego = max(totales) if len(totales) > 0 else 1
                             fig_riego.update_layout(
                                 barmode='stack',
-                                yaxis_title="Emisiones (kg CO₂e/ha)",
-                                title="Emisiones de riego por actividad (agua + energía)",
-                                height=400
+                                yaxis_title="Huella de carbono (kg CO₂e/ha)",
+                                title="Huella de carbono de riego por actividad (agua + energía)",
+                                height=400,
+                                separators=',.'  # Formato español
                             )
                             fig_riego.update_yaxes(range=[0, y_max_riego * 1.15])
                             st.plotly_chart(fig_riego, use_container_width=True, key=get_unique_key())
@@ -3660,8 +3841,8 @@ def mostrar_resultados_anual(em_total, prod_total):
                                 df_act = df_riego[df_riego["Actividad"] == actividad]
                                 if len(df_act) == 1:  # Una sola fila por actividad
                                     row = df_act.iloc[0]
-                                    em_agua = row["Emisiones agua (kg CO₂e)"]
-                                    em_energia = row["Emisiones energía (kg CO₂e)"]
+                                    em_agua = row["Huella de carbono agua (kg CO₂e/ha·ciclo)"]
+                                    em_energia = row["Huella de carbono energía (kg CO₂e/ha·ciclo)"]
                                     total_act = em_agua + em_energia
                                     
                                     # Solo crear gráfico si hay emisiones totales > 0
@@ -3686,13 +3867,22 @@ def mostrar_resultados_anual(em_total, prod_total):
                                                 color_discrete_sequence=["#4fc3f7", "#0288d1"],
                                                 hole=0.3
                                             )
-                                            fig_pie_act.update_traces(textinfo='percent+label')
-                                            fig_pie_act.update_layout(showlegend=True, height=400)
+                                            # Configurar formato español para nombres y porcentajes
+                                            fig_pie_act.update_traces(
+                                                textinfo='label+percent',
+                                                texttemplate='%{label}<br>%{percent}',
+                                                hovertemplate='<b>%{label}</b><br>Huella de carbono: %{value:.2f} kg CO₂e/ha·ciclo<br>Porcentaje: %{percent}<extra></extra>'
+                                            )
+                                            fig_pie_act.update_layout(
+                                                showlegend=True, 
+                                                height=400,
+                                                separators=',.'  # Formato español
+                                            )
                                             st.plotly_chart(fig_pie_act, use_container_width=True, key=get_unique_key())
                                         else:
-                                            st.info(f"La actividad '{actividad}' no tiene emisiones de agua ni energía.")
+                                            st.info(f"La actividad '{actividad}' no tiene huella de carbono de agua ni energía.")
                                     else:
-                                        st.info(f"La actividad '{actividad}' no tiene emisiones totales.")
+                                        st.info(f"La actividad '{actividad}' no tiene huella de carbono total.")
                         else:
                             st.info("No se ingresaron actividades de riego para este ciclo.")
                     # --- RESIDUOS ---
@@ -3703,42 +3893,42 @@ def mostrar_resultados_anual(em_total, prod_total):
                                 {
                                     "Gestión": k,
                                     "Biomasa (kg/ha·ciclo)": v.get("biomasa", 0),
-                                    "Emisiones (kg CO₂e/ha·ciclo)": v.get("emisiones", 0),
-                                    "Emisiones (kg CO₂e/kg fruta·ciclo)": v.get("emisiones", 0) / prod if prod and prod > 0 else None
+                                    "Huella de carbono (kg CO₂e/ha·ciclo)": v.get("emisiones", 0),
+                                    "Huella de carbono (kg CO₂e/kg fruta·ciclo)": v.get("emisiones", 0) / prod if prod and prod > 0 else None
                                 }
                                 for k, v in dr.items()
                             ])
-                            total_res = df_res["Emisiones (kg CO₂e/ha·ciclo)"].sum()
-                            df_res["% contribución"] = df_res["Emisiones (kg CO₂e/ha·ciclo)"] / total_res * 100
+                            total_res = df_res["Huella de carbono (kg CO₂e/ha·ciclo)"].sum()
+                            df_res["% contribución"] = df_res["Huella de carbono (kg CO₂e/ha·ciclo)"] / total_res * 100
                             st.markdown("**Tabla: Desglose de gestión de residuos vegetales**")
                             st.dataframe(df_res[[
-                                "Gestión", "Biomasa (kg/ha·ciclo)", "Emisiones (kg CO₂e/ha·ciclo)", "Emisiones (kg CO₂e/kg fruta·ciclo)", "% contribución"
+                                "Gestión", "Biomasa (kg/ha·ciclo)", "Huella de carbono (kg CO₂e/ha·ciclo)", "Huella de carbono (kg CO₂e/kg fruta·ciclo)", "% contribución"
                             ]].style.format({
                                 "Biomasa (kg/ha·ciclo)": format_num,
-                                "Emisiones (kg CO₂e/ha·ciclo)": format_num,
-                                "Emisiones (kg CO₂e/kg fruta·ciclo)": lambda x: format_num(x, 3),
+                                "Huella de carbono (kg CO₂e/ha·ciclo)": format_num,
+                                "Huella de carbono (kg CO₂e/kg fruta·ciclo)": lambda x: format_num(x, 3),
                                 "% contribución": format_percent
                             }), hide_index=True)
-                            st.caption("Unidades: biomasa (kg/ha·ciclo), emisiones (kg CO₂e/ha·ciclo y kg CO₂e/kg fruta·ciclo), % sobre el total de residuos.")
-                            textos_res = [format_num(v) for v in df_res["Emisiones (kg CO₂e/ha·ciclo)"]]
+                            st.caption("Unidades: biomasa (kg/ha·ciclo), huella de carbono (kg CO₂e/ha·ciclo y kg CO₂e/kg fruta·ciclo), % sobre el total de residuos.")
+                            textos_res = [format_num(v) for v in df_res["Huella de carbono (kg CO₂e/ha·ciclo)"]]
                             fig_res = px.bar(
                                 df_res,
                                 x="Gestión",
-                                y="Emisiones (kg CO₂e/ha·ciclo)",
+                                y="Huella de carbono (kg CO₂e/ha·ciclo)",
                                 color="Gestión",
                                 color_discrete_sequence=px.colors.qualitative.Pastel,
-                                title="Emisiones por gestión de residuos"
+                                title="Huella de carbono por gestión de residuos"
                             )
                             fig_res.add_trace(go.Scatter(
                                 x=df_res["Gestión"],
-                                y=df_res["Emisiones (kg CO₂e/ha·ciclo)"],
+                                y=df_res["Huella de carbono (kg CO₂e/ha·ciclo)"],
                                 text=textos_res,
                                 mode="text",
                                 textposition="top center",
                                 showlegend=False
                             ))
-                            fig_res.update_layout(showlegend=False, height=400)
-                            fig_res.update_yaxes(range=[0, max(df_res["Emisiones (kg CO₂e/ha·ciclo)"]) * 1.15 if not df_res.empty else 1])
+                            fig_res.update_layout(showlegend=False, height=400, separators=',.')
+                            fig_res.update_yaxes(range=[0, max(df_res["Huella de carbono (kg CO₂e/ha·ciclo)"]) * 1.15 if not df_res.empty else 1])
                             st.plotly_chart(fig_res, use_container_width=True, key=get_unique_key())
             st.markdown("---")
 
@@ -3746,14 +3936,13 @@ def mostrar_resultados_anual(em_total, prod_total):
     st.markdown("#### Resumen ejecutivo")
     st.success(
         "📝 **Resumen ejecutivo:**\n\n"
-        "El resumen ejecutivo presenta los resultados clave del cálculo de huella de carbono, útiles para reportes, certificaciones o toma de decisiones.\n\n"
-        "Las emisiones totales estimadas para el sistema productivo corresponden a la suma de todas las fuentes y ciclos considerados, expresadas en **kg CO₂e/ha·año**. "
+        "La huella de carbono total estimada para el sistema productivo corresponde a la suma de todas las fuentes de emisión y ciclos considerados, expresadas en **kg CO₂e/ha·año** y **kg CO₂e/kg fruta·año**. "
         "Este valor representa las emisiones acumuladas a lo largo de todos los ciclos productivos del año agrícola.\n\n"
-        f"**Total emisiones estimadas:** {format_num(em_total, 2)} kg CO₂e/ha·año"
+        f"**Huella de carbono total estimada por hectárea:** {format_num(em_total, 2)} kg CO₂e/ha·año"
         + (
-            f"\n\n**Emisiones por kg de fruta:** {format_num(em_total/prod_total, 3)} kg CO₂e/kg fruta. "
+            f"\n\n**Huella de carbono por kg de fruta:** {format_num(em_total/prod_total, 3)} kg CO₂e/kg fruta.\n\n"
             "Este indicador permite comparar la huella de carbono entre diferentes sistemas o productos, ya que relaciona las emisiones totales con la producción obtenida en el año."
-            if prod_total > 0 else "\n\nNo se ha ingresado producción total. No es posible calcular emisiones por kg de fruta."
+            if prod_total > 0 else "\n\nNo se ha ingresado producción total. No es posible calcular huella de carbono por kg de fruta."
         )
     )
 
@@ -3860,12 +4049,13 @@ def mostrar_resultados_perenne(em_total, prod_total):
             showlegend=True, 
             height=500,  # Aumentar altura para mejor visualización
             xaxis_title="Año",
-            yaxis_title="Emisiones (kg CO₂e/ha)",
+            yaxis_title="Huella de carbono (kg CO₂e/ha)",
             xaxis=dict(
                 tickmode='linear',
                 tick0=df_evol["Año"].min(),
                 dtick=1
-            )
+            ),
+            separators=',.'  # Formato español
         )
         
         st.plotly_chart(fig_evol, use_container_width=True, key=get_unique_key())
@@ -3874,52 +4064,52 @@ def mostrar_resultados_perenne(em_total, prod_total):
 
     # --- Resultados por etapa ---
     if emisiones_etapas:
-        st.markdown("#### Emisiones por etapa")
+        st.markdown("#### Huella de carbono por etapa")
         df_etapas = pd.DataFrame({
             "Etapa": [limpiar_nombre(et) for et in etapas_ordenadas],
             "Clave": etapas_ordenadas,
-            "Emisiones (kg CO₂e/ha)": [emisiones_etapas[et] for et in etapas_ordenadas],
+            "Huella de carbono (kg CO₂e/ha)": [emisiones_etapas[et] for et in etapas_ordenadas],
             "Producción (kg/ha)": [produccion_etapas.get(et, 0) for et in etapas_ordenadas]
         })
-        df_etapas["Emisiones (kg CO₂e/kg fruta)"] = df_etapas.apply(
-            lambda row: row["Emisiones (kg CO₂e/ha)"] / row["Producción (kg/ha)"] if row["Producción (kg/ha)"] > 0 else None,
+        df_etapas["Huella de carbono (kg CO₂e/kg fruta)"] = df_etapas.apply(
+            lambda row: row["Huella de carbono (kg CO₂e/ha)"] / row["Producción (kg/ha)"] if row["Producción (kg/ha)"] > 0 else None,
             axis=1
         )
-        total_emisiones_etapas = df_etapas["Emisiones (kg CO₂e/ha)"].sum()
+        total_emisiones_etapas = df_etapas["Huella de carbono (kg CO₂e/ha)"].sum()
         if total_emisiones_etapas > 0:
-            df_etapas["% contribución"] = df_etapas["Emisiones (kg CO₂e/ha)"] / total_emisiones_etapas * 100
+            df_etapas["% contribución"] = df_etapas["Huella de carbono (kg CO₂e/ha)"] / total_emisiones_etapas * 100
         else:
             df_etapas["% contribución"] = 0
 
-        st.markdown("**Tabla: Emisiones y producción por etapa**")
-        st.dataframe(df_etapas[["Etapa", "Emisiones (kg CO₂e/ha)", "Producción (kg/ha)", "Emisiones (kg CO₂e/kg fruta)", "% contribución"]].style.format({
-            "Emisiones (kg CO₂e/ha)": format_num,
+        st.markdown("**Tabla: Huella de carbono y producción por etapa**")
+        st.dataframe(df_etapas[["Etapa", "Huella de carbono (kg CO₂e/ha)", "Producción (kg/ha)", "Huella de carbono (kg CO₂e/kg fruta)", "% contribución"]].style.format({
+            "Huella de carbono (kg CO₂e/ha)": format_num,
             "Producción (kg/ha)": format_num,
-            "Emisiones (kg CO₂e/kg fruta)": lambda x: format_num(x, 3),
+            "Huella de carbono (kg CO₂e/kg fruta)": lambda x: format_num(x, 3),
             "% contribución": format_percent
         }), hide_index=True)
 
         # Gráfico de barras por etapa (texto sólo en el total)
-        st.markdown("##### Gráfico: Emisiones por etapa (kg CO₂e/ha)")
-        y_max_etapa = df_etapas["Emisiones (kg CO₂e/ha)"].max() if not df_etapas.empty else 1
+        st.markdown("##### Gráfico: Huella de carbono por etapa (kg CO₂e/ha)")
+        y_max_etapa = df_etapas["Huella de carbono (kg CO₂e/ha)"].max() if not df_etapas.empty else 1
         textos_etapa = [format_num(v) for v in df_etapas["Emisiones (kg CO₂e/ha)"]]
         fig_etapa = px.bar(
             df_etapas,
             x="Etapa",
-            y="Emisiones (kg CO₂e/ha)",
+            y="Huella de carbono (kg CO₂e/ha)",
             color="Etapa",
             color_discrete_sequence=px.colors.qualitative.Pastel,
-            title="Emisiones por etapa"
+            title="Huella de carbono por etapa"
         )
         fig_etapa.add_trace(go.Scatter(
             x=df_etapas["Etapa"],
-            y=df_etapas["Emisiones (kg CO₂e/ha)"],
+            y=df_etapas["Huella de carbono (kg CO₂e/ha)"],
             text=textos_etapa,
             mode="text",
             textposition="top center",
             showlegend=False
         ))
-        fig_etapa.update_layout(showlegend=False, height=400)
+        fig_etapa.update_layout(showlegend=False, height=400, separators=',.')
         fig_etapa.update_yaxes(range=[0, y_max_etapa * 1.15])
         st.plotly_chart(fig_etapa, use_container_width=True, key=get_unique_key())
 
@@ -3927,7 +4117,7 @@ def mostrar_resultados_perenne(em_total, prod_total):
 
     # --- Emisiones por fuente y etapa (tabla y barras apiladas) ---
     if emisiones_etapas and emisiones_fuentes and emisiones_fuente_etapa:
-        st.markdown("#### Emisiones por fuente y etapa (tabla y barras apiladas)")
+        st.markdown("#### Huella de carbono por fuente y etapa (tabla y barras apiladas)")
         fuentes = [f for f in emisiones_fuentes.keys() if f != "Transporte"]
         etapas = df_etapas["Clave"].tolist()
         data_fuente_etapa = {fuente: [emisiones_fuente_etapa.get(etapa, {}).get(fuente, 0) for etapa in etapas] for fuente in fuentes}
@@ -3967,9 +4157,10 @@ def mostrar_resultados_perenne(em_total, prod_total):
         y_max_fte = max(totales) if len(totales) > 0 else 1
         fig_fuente_etapa.update_layout(
             barmode='stack',
-            yaxis_title="Emisiones (kg CO₂e/ha)",
-            title="Emisiones por fuente y etapa (barras apiladas)",
-            height=400
+            yaxis_title="Huella de carbono (kg CO₂e/ha)",
+            title="Huella de carbono por fuente y etapa (barras apiladas)",
+            height=400,
+            separators=',.'  # Formato español
         )
         fig_fuente_etapa.update_yaxes(range=[0, y_max_fte * 1.15])
         st.plotly_chart(fig_fuente_etapa, use_container_width=True, key=get_unique_key())
@@ -4006,25 +4197,34 @@ def mostrar_resultados_perenne(em_total, prod_total):
                         total_fert = df_fert["total"].sum()
                         df_fert["% contribución"] = df_fert["total"] / total_fert * 100
                         if prod and prod > 0:
-                            df_fert["Emisiones (kg CO₂e/kg fruta)"] = df_fert["total"] / prod
+                            df_fert["Huella de carbono total (kg CO₂e/kg fruta)"] = df_fert["total"] / prod
                         else:
-                            df_fert["Emisiones (kg CO₂e/kg fruta)"] = None
+                            df_fert["Huella de carbono total (kg CO₂e/kg fruta)"] = None
                         st.markdown("**Tabla: Desglose de fertilizantes (orgánicos e inorgánicos)**")
+                        df_fert_display = df_fert.rename(columns={
+                            "emision_produccion": "Huella de carbono producción (kg CO₂e/ha·ciclo)",
+                            "emision_co2_urea": "Huella de carbono CO₂ urea (kg CO₂e/ha·ciclo)",
+                            "emision_n2o_directa": "Huella de carbono N₂O directa (kg CO₂e/ha·ciclo)",
+                            "emision_n2o_ind_volatilizacion": "Huella de carbono N₂O ind. volatilización (kg CO₂e/ha·ciclo)",
+                            "emision_n2o_ind_lixiviacion": "Huella de carbono N₂O ind. lixiviación (kg CO₂e/ha·ciclo)",
+                            "emision_n2o_indirecta": "Huella de carbono N₂O indirecta (kg CO₂e/ha·ciclo)",
+                            "total": "Huella de carbono total (kg CO₂e/ha·ciclo)"
+                        })
                         st.dataframe(
-                            df_fert[[
-                                "Tipo fertilizante", "tipo", "cantidad", "emision_produccion", "emision_co2_urea",
-                                "emision_n2o_directa", "emision_n2o_ind_volatilizacion", "emision_n2o_ind_lixiviacion",
-                                "emision_n2o_indirecta", "total", "Emisiones (kg CO₂e/kg fruta)", "% contribución"
+                            df_fert_display[[
+                                "Tipo fertilizante", "tipo", "cantidad", "Huella de carbono producción (kg CO₂e/ha·ciclo)", "Huella de carbono CO₂ urea (kg CO₂e/ha·ciclo)",
+                                "Huella de carbono N₂O directa (kg CO₂e/ha·ciclo)", "Huella de carbono N₂O ind. volatilización (kg CO₂e/ha·ciclo)", "Huella de carbono N₂O ind. lixiviación (kg CO₂e/ha·ciclo)",
+                                "Huella de carbono N₂O indirecta (kg CO₂e/ha·ciclo)", "Huella de carbono total (kg CO₂e/ha·ciclo)", "Huella de carbono total (kg CO₂e/kg fruta)", "% contribución"
                             ]].style.format({
                                 "cantidad": format_num,
-                                "emision_produccion": format_num,
-                                "emision_co2_urea": format_num,
-                                "emision_n2o_directa": format_num,
-                                "emision_n2o_ind_volatilizacion": format_num,
-                                "emision_n2o_ind_lixiviacion": format_num,
-                                "emision_n2o_indirecta": format_num,
-                                "total": format_num,
-                                "Emisiones (kg CO₂e/kg fruta)": lambda x: format_num(x, 3),
+                                "Huella de carbono producción (kg CO₂e/ha·ciclo)": format_num,
+                                "Huella de carbono CO₂ urea (kg CO₂e/ha·ciclo)": format_num,
+                                "Huella de carbono N₂O directa (kg CO₂e/ha·ciclo)": format_num,
+                                "Huella de carbono N₂O ind. volatilización (kg CO₂e/ha·ciclo)": format_num,
+                                "Huella de carbono N₂O ind. lixiviación (kg CO₂e/ha·ciclo)": format_num,
+                                "Huella de carbono N₂O indirecta (kg CO₂e/ha·ciclo)": format_num,
+                                "Huella de carbono total (kg CO₂e/ha·ciclo)": format_num,
+                                "Huella de carbono total (kg CO₂e/kg fruta)": lambda x: format_num(x, 3),
                                 "% contribución": format_percent
                             }),
                             hide_index=True
@@ -4060,7 +4260,8 @@ def mostrar_resultados_perenne(em_total, prod_total):
                                     barmode='stack',
                                     yaxis_title="Emisiones (kg CO₂e/ha)",
                                     title=f"Emisiones por fertilizante {tipo_cat.lower()} y tipo de emisión",
-                                    height=400
+                                    height=400,
+                                    separators=',.'  # Formato español
                                 )
                                 fig_fert.update_yaxes(range=[0, max(totales) * 1.15 if len(totales) > 0 else 1])
                                 st.plotly_chart(fig_fert, use_container_width=True, key=get_unique_key())
@@ -4071,60 +4272,67 @@ def mostrar_resultados_perenne(em_total, prod_total):
                         total_agro = df_agro["emisiones"].sum()
                         df_agro["% contribución"] = df_agro["emisiones"] / total_agro * 100
                         if prod and prod > 0:
-                            df_agro["Emisiones (kg CO₂e/kg fruta)"] = df_agro["emisiones"] / prod
+                            df_agro["Huella de carbono (kg CO₂e/kg fruta)"] = df_agro["emisiones"] / prod
                         else:
-                            df_agro["Emisiones (kg CO₂e/kg fruta)"] = None
+                            df_agro["Huella de carbono (kg CO₂e/kg fruta)"] = None
+                        # Renombrar columna para mostrar en tabla
+                        df_agro["Huella de carbono (kg CO₂e/ha)"] = df_agro["emisiones"]
                         st.markdown("**Tabla: Desglose de agroquímicos**")
-                        st.dataframe(df_agro[["categoria", "tipo", "cantidad_ia", "emisiones", "Emisiones (kg CO₂e/kg fruta)", "% contribución"]].style.format({
+                        st.dataframe(df_agro[["nombre_comercial", "categoria", "tipo", "cantidad_ia", "Huella de carbono (kg CO₂e/ha)", "Huella de carbono (kg CO₂e/kg fruta)", "% contribución"]].style.format({
                             "cantidad_ia": format_num,
-                            "emisiones": format_num,
-                            "Emisiones (kg CO₂e/kg fruta)": lambda x: format_num(x, 3),
+                            "Huella de carbono (kg CO₂e/ha)": format_num,
+                            "Huella de carbono (kg CO₂e/kg fruta)": lambda x: format_num(x, 3),
                             "% contribución": format_percent
                         }), hide_index=True)
-                        # Gráfico de barras apiladas por categoría y tipo (kg CO₂e/ha)
-                        st.markdown("**Gráfico: Emisiones de agroquímicos por categoría y tipo (kg CO₂e/ha)**")
-                        df_group = df_agro.groupby(["categoria", "tipo"]).agg({"emisiones": "sum"}).reset_index()
-                        categorias = df_group["categoria"].unique()
-                        tipos = df_group["tipo"].unique()
+                        # Gráfico de barras por nombre comercial (kg CO₂e/ha)
+                        st.markdown("**Gráfico: Emisiones de agroquímicos por nombre comercial (kg CO₂e/ha)**")
+                        # Agrupar por categoría para crear las barras
+                        categorias = df_agro["categoria"].unique()
                         fig_agro = go.Figure()
-                        for tipo in tipos:
-                            vals = []
-                            for cat in categorias:
-                                row = df_group[(df_group["categoria"] == cat) & (df_group["tipo"] == tipo)]
-                                vals.append(row["emisiones"].values[0] if not row.empty else 0)
-                            fig_agro.add_bar(x=categorias, y=vals, name=tipo)
-                        totales = df_group.groupby("categoria")["emisiones"].sum().reindex(categorias).values
-                        textos_tot = [format_num(v) for v in totales]
-                        fig_agro.add_trace(go.Scatter(
-                            x=categorias,
-                            y=totales,
-                            text=textos_tot,
-                            mode="text",
-                            textposition="top center",
-                            showlegend=False
-                        ))
+                        
+                        for categoria in categorias:
+                            df_cat = df_agro[df_agro["categoria"] == categoria]
+                            fig_agro.add_bar(
+                                x=df_cat["nombre_comercial"], 
+                                y=df_cat["emisiones"], 
+                                name=categoria,
+                                text=[format_num(v) for v in df_cat["emisiones"]],
+                                textposition="outside"
+                            )
+                        
                         fig_agro.update_layout(
-                            barmode='stack',
+                            barmode='group',
                             yaxis_title="Emisiones (kg CO₂e/ha)",
-                            title="Emisiones de agroquímicos por categoría y tipo",
-                            height=400
+                            title="Emisiones de agroquímicos por nombre comercial",
+                            height=400,
+                            separators=',.',  # Formato español
+                            xaxis_title="Nombre comercial"
                         )
-                        y_max_agro = max(totales) if len(totales) > 0 else 1
+                        y_max_agro = df_agro["emisiones"].max() if not df_agro.empty else 1
                         fig_agro.update_yaxes(range=[0, y_max_agro * 1.15])
                         st.plotly_chart(fig_agro, use_container_width=True, key=get_unique_key())
-                        # Gráfico de torta por categoría (kg CO₂e/ha)
-                        st.markdown("**Gráfico: % de contribución de cada categoría de agroquímico (kg CO₂e/ha)**")
-                        df_cat = df_agro.groupby("categoria").agg({"emisiones": "sum"}).reset_index()
+                        # Gráfico de torta por nombre comercial (kg CO₂e/ha)
+                        st.markdown("**Gráfico: % de contribución de cada agroquímico por nombre comercial (kg CO₂e/ha)**")
                         fig_pie_agro = px.pie(
-                            df_cat,
-                            names="categoria",
+                            df_agro,
+                            names="nombre_comercial",
                             values="emisiones",
-                            title="Contribución de cada categoría de agroquímico",
+                            title="Contribución de cada agroquímico por nombre comercial",
                             color_discrete_sequence=px.colors.qualitative.Set2,
                             hole=0.3
                         )
-                        fig_pie_agro.update_traces(textinfo='percent+label')
-                        fig_pie_agro.update_layout(showlegend=True, height=400)
+                        # Configurar formato español para nombres y porcentajes
+                        fig_pie_agro.update_traces(
+                            textinfo='label+percent',
+                            texttemplate='%{label}<br>%{percent}',
+                            hovertemplate='<b>%{label}</b><br>Categoría: %{customdata}<br>Huella de carbono: %{value:.2f} kg CO₂e/ha<br>Porcentaje: %{percent}<extra></extra>',
+                            customdata=df_agro["categoria"]
+                        )
+                        fig_pie_agro.update_layout(
+                            showlegend=True, 
+                            height=400,
+                            separators=',.'  # Formato español
+                        )
                         st.plotly_chart(fig_pie_agro, use_container_width=True, key=get_unique_key())
                 # --- MAQUINARIA ---
                 elif fuente == "Maquinaria" and emisiones_fuente_etapa[etapa].get("desglose_maquinaria"):
@@ -4133,14 +4341,16 @@ def mostrar_resultados_perenne(em_total, prod_total):
                         total_maq = df_maq["emisiones"].sum()
                         df_maq["% contribución"] = df_maq["emisiones"] / total_maq * 100
                         if prod and prod > 0:
-                            df_maq["Emisiones (kg CO₂e/kg fruta)"] = df_maq["emisiones"] / prod
+                            df_maq["Huella de carbono (kg CO₂e/kg fruta)"] = df_maq["emisiones"] / prod
                         else:
-                            df_maq["Emisiones (kg CO₂e/kg fruta)"] = None
+                            df_maq["Huella de carbono (kg CO₂e/kg fruta)"] = None
+                        # Renombrar columna para mostrar en tabla
+                        df_maq["Huella de carbono (kg CO₂e/ha)"] = df_maq["emisiones"]
                         st.markdown("**Tabla: Desglose de maquinaria**")
-                        st.dataframe(df_maq[["nombre_labor", "tipo_maquinaria", "tipo_combustible", "litros", "emisiones", "Emisiones (kg CO₂e/kg fruta)", "% contribución"]].style.format({
+                        st.dataframe(df_maq[["nombre_labor", "tipo_maquinaria", "tipo_combustible", "litros", "Huella de carbono (kg CO₂e/ha)", "Huella de carbono (kg CO₂e/kg fruta)", "% contribución"]].style.format({
                             "litros": format_num,
-                            "emisiones": format_num,
-                            "Emisiones (kg CO₂e/kg fruta)": lambda x: format_num(x, 3),
+                            "Huella de carbono (kg CO₂e/ha)": format_num,
+                            "Huella de carbono (kg CO₂e/kg fruta)": lambda x: format_num(x, 3),
                             "% contribución": format_percent
                         }), hide_index=True)
                         # Gráfico de torta: emisiones por labor (kg CO₂e/ha)
@@ -4154,8 +4364,17 @@ def mostrar_resultados_perenne(em_total, prod_total):
                             color_discrete_sequence=px.colors.qualitative.Set2,
                             hole=0.3
                         )
-                        fig_pie_labor.update_traces(textinfo='percent+label')
-                        fig_pie_labor.update_layout(showlegend=True, height=400)
+                        # Configurar formato español para nombres y porcentajes
+                        fig_pie_labor.update_traces(
+                            textinfo='label+percent',
+                            texttemplate='%{label}<br>%{percent}',
+                            hovertemplate='<b>%{label}</b><br>Emisiones: %{value:.2f} kg CO₂e/ha<br>Porcentaje: %{percent}<extra></extra>'
+                        )
+                        fig_pie_labor.update_layout(
+                            showlegend=True, 
+                            height=400,
+                            separators=',.'  # Formato español
+                        )
                         st.plotly_chart(fig_pie_labor, use_container_width=True, key=get_unique_key())
                         # Gráfico de torta: emisiones por maquinaria dentro de cada labor (kg CO₂e/ha)
                         labores_unicas = df_maq["nombre_labor"].unique()
@@ -4171,8 +4390,17 @@ def mostrar_resultados_perenne(em_total, prod_total):
                                     color_discrete_sequence=px.colors.qualitative.Pastel,
                                     hole=0.3
                                 )
-                                fig_pie_maq.update_traces(textinfo='percent+label')
-                                fig_pie_maq.update_layout(showlegend=True, height=400)
+                                # Configurar formato español para nombres y porcentajes
+                                fig_pie_maq.update_traces(
+                                    textinfo='label+percent',
+                                    texttemplate='%{label}<br>%{percent}',
+                                    hovertemplate='<b>%{label}</b><br>Emisiones: %{value:.2f} kg CO₂e/ha<br>Porcentaje: %{percent}<extra></extra>'
+                                )
+                                fig_pie_maq.update_layout(
+                                    showlegend=True, 
+                                    height=400,
+                                    separators=',.'  # Formato español
+                                )
                                 st.plotly_chart(fig_pie_maq, use_container_width=True, key=get_unique_key())
                         # Gráfico de barras apiladas: labor (X), emisiones (Y), apilado por maquinaria (kg CO₂e/ha)
                         st.markdown("**Gráfico: Emisiones por labor y tipo de maquinaria (barras apiladas, kg CO₂e/ha)**")
@@ -4205,7 +4433,8 @@ def mostrar_resultados_perenne(em_total, prod_total):
                             barmode='stack',
                             yaxis_title="Emisiones (kg CO₂e/ha)",
                             title="Emisiones por labor y tipo de maquinaria",
-                            height=400
+                            height=400,
+                            separators=',.'  # Formato español
                         )
                         fig_maq.update_yaxes(range=[0, y_max_maq * 1.15])
                         st.plotly_chart(fig_maq, use_container_width=True, key=get_unique_key())
@@ -4219,50 +4448,50 @@ def mostrar_resultados_perenne(em_total, prod_total):
                             "Actividad": ea.get("actividad", ""),
                             "Tipo actividad": ea.get("tipo_actividad", ""),
                             "Consumo agua (m³)": ea.get("agua_total_m3", 0),
-                            "Emisiones agua (kg CO₂e)": ea.get("emisiones_agua", 0),
+                            "Huella de carbono agua (kg CO₂e/ha)": ea.get("emisiones_agua", 0),
                             "Consumo energía": ea.get("consumo_energia", 0),
                             "Tipo energía": ea.get("tipo_energia", ""),
-                            "Emisiones energía (kg CO₂e)": ea.get("emisiones_energia", 0),
+                            "Huella de carbono energía (kg CO₂e/ha)": ea.get("emisiones_energia", 0),
                         })
                     if actividades:
                         df_riego = pd.DataFrame(actividades)
-                        df_riego["Emisiones totales (kg CO₂e)"] = df_riego["Emisiones agua (kg CO₂e)"] + df_riego["Emisiones energía (kg CO₂e)"]
+                        df_riego["Huella de carbono total (kg CO₂e/ha)"] = df_riego["Huella de carbono agua (kg CO₂e/ha)"] + df_riego["Huella de carbono energía (kg CO₂e/ha)"]
                         if prod and prod > 0:
-                            df_riego["Emisiones totales (kg CO₂e/kg fruta)"] = df_riego["Emisiones totales (kg CO₂e)"] / prod
+                            df_riego["Huella de carbono total (kg CO₂e/kg fruta)"] = df_riego["Huella de carbono total (kg CO₂e/ha)"] / prod
                         else:
-                            df_riego["Emisiones totales (kg CO₂e/kg fruta)"] = None
-                        total_riego = df_riego["Emisiones totales (kg CO₂e)"].sum()
+                            df_riego["Huella de carbono total (kg CO₂e/kg fruta)"] = None
+                        total_riego = df_riego["Huella de carbono total (kg CO₂e/ha)"].sum()
                         if total_riego > 0:
-                            df_riego["% contribución"] = df_riego["Emisiones totales (kg CO₂e)"] / total_riego * 100
+                            df_riego["% contribución"] = df_riego["Huella de carbono total (kg CO₂e/ha)"] / total_riego * 100
                         else:
                             df_riego["% contribución"] = 0
                         st.markdown("**Tabla: Desglose de riego por actividad (agua y energía apilados)**")
                         st.dataframe(df_riego[[
-                            "Actividad", "Tipo actividad", "Consumo agua (m³)", "Emisiones agua (kg CO₂e)",
-                            "Consumo energía", "Tipo energía", "Emisiones energía (kg CO₂e)",
-                            "Emisiones totales (kg CO₂e)", "Emisiones totales (kg CO₂e/kg fruta)", "% contribución"
+                            "Actividad", "Tipo actividad", "Consumo agua (m³)", "Huella de carbono agua (kg CO₂e/ha)",
+                            "Consumo energía", "Tipo energía", "Huella de carbono energía (kg CO₂e/ha)",
+                            "Huella de carbono total (kg CO₂e/ha)", "Huella de carbono total (kg CO₂e/kg fruta)", "% contribución"
                         ]].style.format({
                             "Consumo agua (m³)": format_num,
-                            "Emisiones agua (kg CO₂e)": format_num,
+                            "Huella de carbono agua (kg CO₂e/ha)": format_num,
                             "Consumo energía": format_num,
-                            "Emisiones energía (kg CO₂e)": format_num,
-                            "Emisiones totales (kg CO₂e)": format_num,
-                            "Emisiones totales (kg CO₂e/kg fruta)": lambda x: format_num(x, 3),
+                            "Huella de carbono energía (kg CO₂e/ha)": format_num,
+                            "Huella de carbono total (kg CO₂e/ha)": format_num,
+                            "Huella de carbono total (kg CO₂e/kg fruta)": lambda x: format_num(x, 3),
                             "% contribución": format_percent
                         }), hide_index=True)
                         # Gráfico de barras apiladas por actividad (agua + energía) - texto sólo en el total
                         fig_riego = go.Figure()
                         fig_riego.add_bar(
                             x=df_riego["Actividad"],
-                            y=df_riego["Emisiones agua (kg CO₂e)"],
+                            y=df_riego["Huella de carbono agua (kg CO₂e/ha)"],
                             name="Agua"
                         )
                         fig_riego.add_bar(
                             x=df_riego["Actividad"],
-                            y=df_riego["Emisiones energía (kg CO₂e)"],
+                            y=df_riego["Huella de carbono energía (kg CO₂e/ha)"],
                             name="Energía"
                         )
-                        totales = df_riego["Emisiones totales (kg CO₂e)"].values
+                        totales = df_riego["Huella de carbono total (kg CO₂e/ha)"].values
                         textos_tot = [format_num(v) for v in totales]
                         fig_riego.add_trace(go.Scatter(
                             x=df_riego["Actividad"],
@@ -4275,9 +4504,10 @@ def mostrar_resultados_perenne(em_total, prod_total):
                         y_max_riego = max(totales) if len(totales) > 0 else 1
                         fig_riego.update_layout(
                             barmode='stack',
-                            yaxis_title="Emisiones (kg CO₂e/ha)",
+                            yaxis_title="Huella de carbono (kg CO₂e/ha)",
                             title="Emisiones de riego por actividad (agua + energía)",
-                            height=400
+                            height=400,
+                            separators=',.'  # Formato español
                         )
                         fig_riego.update_yaxes(range=[0, y_max_riego * 1.15])
                         st.plotly_chart(fig_riego, use_container_width=True, key=get_unique_key())
@@ -4325,7 +4555,7 @@ def mostrar_resultados_perenne(em_total, prod_total):
                             textposition="top center",
                             showlegend=False
                         ))
-                        fig_res.update_layout(showlegend=False, height=400)
+                        fig_res.update_layout(showlegend=False, height=400, separators=',.')
                         fig_res.update_yaxes(range=[0, max(df_res["Emisiones (kg CO₂e/ha)"]) * 1.15 if not df_res.empty else 1])
                         st.plotly_chart(fig_res, use_container_width=True, key=get_unique_key())
 
